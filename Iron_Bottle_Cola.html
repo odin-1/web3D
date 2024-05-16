@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge, chrome=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0,user-scalable=no">
+    <meta name="format-detection" content="telephone=no">
+    <title>THREE.js Loader</title>
+    <style>
+        html, body{
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            font-family: Helvetica;
+        }
+        #stage, video, canvas{
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        canvas{
+            z-index: 99;
+        }
+		
+		a:link{color:#333333;text-decoration:none;}
+	    a:visited{color:#333333;text-decoration:none;}
+	    a:hover{color:#FF6600;text-decoration:none;}
+    </style>
+</head>
+<body>
+<div id="stage"></div>
+<script type="text/javascript" src="https://cdn.bootcss.com/eruda/1.2.6/eruda.min.js"></script>
+<script type="text/javascript" src="js/three.js"></script>
+<script type="text/javascript" src="js/inflate.min.js"></script>
+<script type="text/javascript" src="js/OrbitControls.js"></script>
+<script type="text/javascript" src="js/loader/FBXLoader.js"></script>
+<script type="text/javascript" src="js/loader/OBJLoader.js"></script>
+<script type="text/javascript" src="js/loader/MTLLoader.js"></script>
+<script type="text/javascript" src="js/loader/TGALoader.js"></script>
+<script type="text/javascript">
+    eruda.init();
+
+    var u = navigator.userAgent;
+    var isAndroid = u.indexOf('Android') > -1 || u.indexOf('Adr') > -1; // android
+    var isiOS = !!u.match(/\(i[^;]+;( U;)? CPU.+Mac OS X/); // ios
+
+    var stage = document.querySelector('#stage');
+    var container;
+    var scene, camera, renderer, controls;
+    var SCREEN_WIDTH =  window.innerWidth;
+    var SCREEN_HEIGHT = window.innerHeight;
+    var angle = 90;
+    var nearest = 1;
+    var farthest = 1000;
+    var mixers = new Array();
+    var clock = new THREE.Clock();
+
+    init();
+    initSourceWebcam();
+	
+
+
+
+    function init(){
+		
+        container = document.createElement('div');
+        stage.appendChild(container);
+        // 创建场景
+        scene = new THREE.Scene();
+        // 创建相机
+        camera =  new THREE.PerspectiveCamera(angle, SCREEN_WIDTH / SCREEN_HEIGHT, nearest, farthest);
+        camera.position.set(20, 20, 30);
+        // 环境光
+        scene.add(new THREE.AmbientLight(4210752, 3));
+        // 平行光
+        var light = new THREE.DirectionalLight(16777215, 1);
+        light.position.set(0, 50, 50);
+        scene.add(light);
+        // 坐标系
+        //var axes = new THREE.AxisHelper(30);
+       // scene.add(axes);
+
+        // 加载提示
+        var manager = new THREE.LoadingManager();
+        manager.onProgress = function(item, loaded, total){
+            console.log(item, loaded, total);
+        };
+
+        var onProgress = function(xhr){
+            if(xhr.lengthComputable){
+                var percentComplete = xhr.loaded / xhr.total * 100;
+                console.log(Math.round(percentComplete, 2) + '% downloaded');
+            }
+        };
+
+        var onError = function(xhr){
+            console.error(xhr);
+        };
+
+str='./models/miku/14K_CocaCola_Water_Bottle.fbx';
+
+	
+        var fbx_loader = new THREE.FBXLoader(manager);
+
+        // fbx静态模型
+        fbx_loader.load(str, function(object){
+           // object.scale.multiplyScalar(.9);
+            object.scale.set(7, 6, 7);
+            scene.add(object);
+        }, onProgress, onError);
+
+        // 创建渲染器
+        renderer = new THREE.WebGLRenderer({
+            antialias: true,    // 平滑效果
+            alpha: true,    // canvas背景透明
+        });
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setSize(SCREEN_WIDTH, SCREEN_HEIGHT);
+        container.appendChild(renderer.domElement);
+
+        // 创建控制器
+        controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.target.set(0, 0, 0);
+
+        animate();
+
+        window.addEventListener('resize', onWindowResize, false);
+		renderer.domElement.addEventListener('click', onCanvasClick, false);
+		 var colorPicker; // 用于保存颜色选择器的元素
+ 
+        // 鼠标点击事件处理函数
+        function onCanvasClick(event) {
+            // 获取点击位置的屏幕坐标
+            var mouse = new THREE.Vector2();
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+ 
+            // 创建射线投射器
+            var raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(mouse, camera);
+ 
+            // 计算射线与场景中的物体的相交情况
+            var intersects = raycaster.intersectObjects(scene.children, true);
+ 
+            // 如果有物体被点击到，则弹出颜色选择器
+            if (intersects.length > 0) {
+                var selectedObject = intersects[0].object;
+ 
+                // 关闭之前打开的颜色选择器
+                closeColorPicker();
+ 
+                // 创建颜色选择器
+                createColorPicker(event.clientX, event.clientY, selectedObject);
+            } else {
+                // 点击其他地方关闭颜色选择器
+                closeColorPicker();
+            }
+        }
+ 
+        // 创建颜色选择器函数
+        function createColorPicker(x, y, object) {
+            // 添加颜色选择器，并设置其位置为鼠标点击的位置
+            colorPicker = document.createElement('input');
+            colorPicker.type = 'color';
+            colorPicker.id = 'color-picker';
+            colorPicker.style.position = 'absolute';
+            colorPicker.style.left = x + 'px';
+            colorPicker.style.top = y + 'px';
+            document.body.appendChild(colorPicker);
+ 
+            // 添加关闭按钮，并设置其位置为颜色选择器旁边
+            var closeButton = document.createElement('button');
+            closeButton.innerText = '×';
+            closeButton.id = 'close-button';
+            closeButton.style.position = 'absolute';
+            closeButton.style.left = x + colorPicker.offsetWidth + 'px';
+            closeButton.style.top = y + 'px';
+            document.body.appendChild(closeButton);
+ 
+            // 添加颜色变化事件监听器，以实时更新选中的颜色
+            colorPicker.addEventListener('input', function () {
+                // 获取选择器选择的颜色
+                var selectedColor = colorPicker.value;
+ 
+                // 将颜色应用到选中的物体上
+                object.material.color.set(selectedColor);
+            }, false);
+ 
+            // 添加点击关闭按钮的事件监听器
+            closeButton.addEventListener('click', function () {
+                // 关闭颜色选择器
+                closeColorPicker();
+            }, false);
+        }
+ 
+        // 关闭颜色选择器函数
+        function closeColorPicker() {
+            if (colorPicker) {
+                // 移除颜色选择器和关闭按钮
+                document.body.removeChild(colorPicker);
+                document.body.removeChild(document.getElementById('close-button'));
+                colorPicker = null;
+            }
+        }
+    }
+    
+    function animate(){
+        requestAnimationFrame(animate);
+        render();
+    }
+
+    function render(){
+        var delta = clock.getDelta();
+        if (mixers.length > 0) {
+            for (var i = 0; i < mixers.length; i ++) {
+                mixers[i].update(delta);
+            }
+        }
+        controls.update();
+        renderer.render( scene, camera );
+    }
+
+    // 窗口改变重置摄像头
+    function onWindowResize(){
+        SCREEN_WIDTH = window.innerWidth;
+        SCREEN_HEIGHT = window.innerHeight;
+        renderer.setSize(SCREEN_WIDTH, SCREEN_HEIGHT);
+        camera.aspect = SCREEN_WIDTH / SCREEN_HEIGHT;
+        camera.updateProjectionMatrix();
+    }
+
+    // 获取视频流
+    function initSourceWebcam(){
+        // check API is available
+        if(navigator.mediaDevices === undefined || navigator.mediaDevices.enumerateDevices === undefined || navigator.mediaDevices.getUserMedia === undefined){
+            console.log('Not Support')
+        }
+        else {
+            // get available devices
+            navigator.mediaDevices.enumerateDevices().then(function(devices){
+                if(isiOS){
+                    navigator.mediaDevices.getUserMedia({
+                        audio: false,
+                        video: {
+                            facingMode: 'environment'
+                        }
+                    }).then(successFunc).catch(errorFunc);
+                }
+                else{
+                    var videoSourceId;
+                    for(var i = 0; i < devices.length; i++){
+                        var deviceInfo = devices[i];
+                        if(deviceInfo.kind == "videoinput" && deviceInfo.label.split(', ')[1] == "facing back"){
+                            videoSourceId = deviceInfo.deviceId;
+                        }
+                    }
+                    navigator.mediaDevices.getUserMedia({
+                        audio: false,
+                        video: {
+                            optional: [{sourceId: videoSourceId}]
+                        }
+                    }).then(successFunc).catch(errorFunc);
+                }
+            }).catch(errorFunc);
+        }
+    }
+
+    // 摄像头调起成功
+    function successFunc(stream){
+        var domElement = document.createElement('video');
+        domElement.setAttribute('autoplay', '');
+        domElement.setAttribute('muted', '');
+        domElement.setAttribute('playsinline', '');
+        domElement.style.width = document.documentElement.clientWidth + 'px';
+        domElement.style.height = document.documentElement.clientHeight + 'px';
+
+        domElement.srcObject = stream;
+        document.body.addEventListener('click', function(){
+            domElement.play();
+        });
+
+        // wait until the video stream is ready
+        var interval = setInterval(function(){
+            if(!domElement.videoWidth){
+                return;
+            }
+
+            clearInterval(interval);
+            stage.appendChild(domElement);
+        }, 1000/50);
+    }
+
+    // 摄像头调起失败
+    function errorFunc(err){
+        console.log(err);
+    }
+</script>
+<div style="width:100%; height:50px; display:flex; justify-content:space-around; position:fixed; z-index:44444;  bottom:0px; background-color:#ffffff;">
+<div><a href="index.html" style="height:40px; line-height:40px">Home Page</a></div>
+<div><a href="Canned-cola.html" style="height:40px; line-height:40px">Canned-cola</a></div>
+<div><a href="Pepsi_Cola.html" style="height:40px; line-height:40px">Pepsi-cola</a></div>
+<div><a href="Iron_Bottle_Cola.html" style="height:40px; line-height:40px">Iron Bottle Cola</a></div></div>
+</body>
+</html>
