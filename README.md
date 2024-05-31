@@ -1,5 +1,10 @@
 # my-vue-app
 
+## node_modules link
+```
+
+```
+
 ## Project setup
 ```
 npm install
