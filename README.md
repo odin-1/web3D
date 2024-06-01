@@ -1,6 +1,6 @@
 # my-vue-app
 
-## node_modules link
+## node_modules link (you must download this file to run)
 ```
 https://1drv.ms/u/s!AtMHTtZrtvKWge4dp0avIR5vmfxn1g?e=GSoE3u
 ```
